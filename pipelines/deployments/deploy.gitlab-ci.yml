@@ -1,0 +1,249 @@
+.variables: &mbanq-variables
+  AuroraInstanceMaxConnections: 500
+  AuroraInstanceType: db.t3.small
+  AuroraPGInstanceType: db.t3.medium
+  AuroraPGReadInstanceType: db.t3.medium
+  AuroraReadReplicaMaxSize: 1
+  AuroraReadReplicaMinSize: 0
+  AuroraPreferredBackupWindow: 02:30-03:00
+  AuroraPreferredMaintenanceWindow: Sun:03:00-Sun:03:30
+  ConfigEnabled: 'false'
+  EventEnabled: 'false'
+  ConfigNotificationEmail: config-notifications@mbanq.com
+  AZs: 3
+  CIDRPrefix: '10.101'
+  STACK_NAME: aws-infrastructure
+  FAILS_JOBS_EMAIL: failed.jobs@mbanq.com
+  AWS_DEFAULT_REGION: us-east-1
+  ApiGatewayInterfaceEndpointEnable: 'true'
+  SSMInterfaceEndpointEnable: 'true'
+  SNSInterfaceEndpointEnable: 'false'
+  SQSInterfaceEndpointEnable: 'true'
+  CloudWatchInterfaceEndpointEnable: 'false'
+  ECRInterfaceEndpointEnable: 'false'
+
+deploy:mbanq:development:
+  inherit:
+    variables: false
+  stage: deploy:mbanq:development
+  # enables tracking which commits are deployed to each environment
+  environment:
+    name: 'Mbanq/AWS/Development'
+    url: https://console.${DOMAIN}
+  variables:
+    <<: *mbanq-variables
+    DOMAIN: dev.mbanq.cloud
+    EnvironmentClass: Development
+    EnableMySQLService: 'false'
+    BacktrackConfig: 'false'
+    AWS_ENVIRONMENT_NAME: Mbanq-Development
+    AWS_MAIN_ACCOUNT_ID: 145609527114
+    PGSnapshotIdentifier: 'snapshot-rds-mbanq-dev-03-11-23'
+    MIDDLEWARE_AWS_ACCOUNT_ID: 636104564767
+    EventEnabled: 'true'
+    WAF_ENABLED: 'true'
+  only:
+    - develop
+  before_script:
+    - source "${DEV_ENVIRONMENT}"
+    - source "${DEV_ENVIRONMENT_SFTP}"
+    - source "${DEV_ENVIRONMENT_CARD_GATEWAY}"
+    - source "${DEV_ENVIRONMENT_EXTERNAL_CARD}"
+    - source "${DEV_ENVIRONMENT_HERON}"
+    - source "${DEV_ENVIRONMENT_KYC_SOCURE}"
+    - source "${DEV_ENVIRONMENT_CARD_ID}"
+    - source "${CAMEL_DEV_ENVIRONMENT}"
+    - source "${DEV_DEVELOPMENT_CONCIERGE}"
+  script:
+    - bash scripts/pipelines/deploy.sh
+
+deploy:mbanq:staging:
+  inherit:
+    variables: false
+  stage: deploy:mbanq:staging
+  # enables tracking which commits are deployed to each environment
+  environment:
+    name: 'Mbanq/AWS/Staging'
+    url: https://console.${DOMAIN}
+  variables:
+    <<: *mbanq-variables
+    DOMAIN: stage.mbanq.cloud
+    EnvironmentClass: Staging
+    ACMEnabled: 'true'
+    AWS_ENVIRONMENT_NAME: Mbanq-Staging
+    PGSnapshotIdentifier: 'snapshot-rds-mbanq-stage-03-02-24'
+    EC2InstanceType: 't2.medium'
+  only:
+    - master
+  before_script:
+    - source "${STAGE_ENVIRONMENT}"
+    - source "${STAGE_ENVIRONMENT_SFTP}"
+    - source "${STAGE_ENVIRONMENT_CARD_GATEWAY}"
+    - source "${STAGE_ENVIRONMENT_EXTERNAL_CARD}"
+    - source "${STAGE_ENVIRONMENT_HERON}"
+    - source "${STAGE_ENVIRONMENT_KYC_SOCURE}"
+    - source "${STAGE_ENVIRONMENT_CARD_ID}"
+    - source "${STAGE_ENVIRONMENT_CONCIERGE}"
+  script:
+    - bash scripts/pipelines/deploy.sh
+
+deploy:mbanq:production:
+  inherit:
+    variables: false
+  stage: deploy:mbanq:production
+  # enables tracking which commits are deployed to each environment
+  environment:
+    name: 'Mbanq/AWS/Production'
+    url: https://console.${DOMAIN}
+  variables:
+    <<: *mbanq-variables
+    AuroraInstanceMaxConnections: 2000
+    AuroraPGInstanceType: db.r5.large
+    AuroraPGReadInstanceType: db.r5.large
+    AuroraReadReplicaMaxSize: 2
+    AuroraReadReplicaMinSize: 1
+    ConfigEnabled: 'true'
+    DOMAIN: cloud.mbanq.com
+    EnvironmentClass: Production
+    ACMEnabled: 'true'
+    AWS_ENVIRONMENT_NAME: Mbanq-Production
+    PGSnapshotIdentifier: 'snapshot-mbanq-prod-03-11-23'
+    MIDDLEWARE_AWS_ACCOUNT_ID: 032783858914
+    WAF_ENABLED: 'true'
+    SecretRotationScheduleExpression: 'cron(0 2 1 */3 ? *)'
+    RdsLockUserScheduleExpression: 'cron(0 5 1 */3 ? *)'
+  when: manual
+  only:
+    - master
+  before_script:
+    - source "${PROD_ENVIRONMENT}"
+    - source "${PROD_ENVIRONMENT_SFTP}"
+    - source "${PROD_ENVIRONMENT_EXTERNAL_CARD}"
+    - source "${PROD_ENVIRONMENT_KYC_SOCURE}"
+  script:
+    - bash scripts/pipelines/deploy.sh
+
+.variables: &parsingsftp-variables
+  SERVICE_NAME: lambda-sftp-parsing
+  AZs: 2
+  CIDRPrefix: '10.0'
+  FAILS_JOBS_EMAIL: middlewarefailsjobs@mbanq.com
+  AWS_DEFAULT_REGION: us-east-1
+  EventEnabled: 'false'
+  AuroraInstanceMaxConnections: 500
+  AuroraPGInstanceType: db.t3.medium
+  AuroraPGReadInstanceType: db.t3.medium
+  AuroraReadReplicaMaxSize: 1
+  AuroraReadReplicaMinSize: 0
+  AuroraPreferredBackupWindow: 02:30-03:00
+  AuroraPreferredMaintenanceWindow: Sun:03:00-Sun:03:30
+  EnablePostgresService: 'true'
+  EnableRedisService: 'true'
+
+deploy:middleware-mbanq:development:
+  stage: deploy:mbanq:development
+  inherit:
+    variables: false
+  # enables tracking which commits are deployed to each environment
+  environment:
+    name: 'Mbanq/Middleware/Development'
+  only:
+    - /^debugging/.*$/
+    - develop
+  when: manual
+  variables:
+    <<: *parsingsftp-variables
+    AWS_ACCOUNT_ID: 636104564767
+    EnablePostgresService: 'true'
+    EnableRedisService: 'true'
+    BUCKET_NAME: ${AWS_ACCOUNT_ID}-move-logs-to-s3
+    EnvironmentClass: Development
+    AWS_ENVIRONMENT_NAME: Middleware-Dev
+    DOMAIN: middleware-dev.mbanq.cloud
+    CLIENT_AWS_ACCOUNT_ID: "729842399405"
+    EventEnabled: 'true'
+  script:
+    - source "${MIDDLEWARE_DEVELOPMENT}"
+    - source "${MIDDLEWARE_DEVELOPMENT_SFTP}"
+    - bash -e scripts/pipelines/deploy-middleware.sh
+
+deploy:middleware-mbanq:staging:
+  stage: deploy:mbanq:staging
+  inherit:
+    variables: false
+  # enables tracking which commits are deployed to each environment
+  environment:
+    name: 'Mbanq/Middleware/Staging'
+  only:
+    - master
+  when: manual
+  variables:
+    <<: *parsingsftp-variables
+    CIDRPrefix: '10.101'
+    AWS_ACCOUNT_ID: 896307250057
+    BUCKET_NAME: ${AWS_ACCOUNT_ID}-move-logs-to-s3
+    EnvironmentClass: Staging
+    AWS_ENVIRONMENT_NAME: Middleware-Stage
+    DOMAIN: middleware-s.mbanq.cloud
+    EnableRedisService: 'false'
+    CROSS_ACCOUNT_RDS_CONNECTION_ENABLED: 'true'
+    OPS_ENABLED: 'true'
+    RDS_PRIVATE_IP_ADDRESS: '10.101.87.121'
+    B9_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0889c4d9b4ad449f8
+    OPS_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-05597e89a38c6e093
+    CHEQLY_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-06e40a37746166efa
+    CLIENT_AWS_ACCOUNT_ID: "516035608170"
+    USA_NATIONAL_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0ac6668e42bc0310e
+    POETRY_FINANCE_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-007c1bbbc0a42d543
+    QORBIS_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0c6d26f13211bdc5d
+    MANA_PACIFIC_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-06cf414370d200c70
+    TOKENIZER_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-062188c14109eec45
+    P2P_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0ccddc95a1263a21b
+    PAYHAMMER_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0c48d3eb13b64376d
+    ESTU_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0f9040da7c608846e
+  script:
+    - source "${MIDDLEWARE_STAGE}"
+    - source "${MIDDLEWARE_STAGE_SFTP}"
+    - bash -e scripts/pipelines/deploy-middleware.sh
+
+deploy:middleware-mbanq:production:
+  stage: deploy:mbanq:production
+  inherit:
+    variables: false
+  # enables tracking which commits are deployed to each environment
+  environment:
+    name: 'Mbanq/Middleware/Production'
+  only:
+    - master
+  when: manual
+  variables:
+    <<: *parsingsftp-variables
+    CIDRPrefix: '10.101'
+    AWS_ACCOUNT_ID: 032783858914
+    BUCKET_NAME: ${AWS_ACCOUNT_ID}-move-logs-to-s3
+    EnvironmentClass: Production
+    AWS_ENVIRONMENT_NAME: Middleware-Prod
+    FAILS_JOBS_EMAIL: middleware-production-fails-jobs@mbanq.com
+    DOMAIN: middleware.mbanq.cloud
+    CROSS_ACCOUNT_RDS_CONNECTION_ENABLED: 'true'
+    OPS_ENABLED: 'true'
+    RDS_PRIVATE_IP_ADDRESS: '10.101.89.129'
+    EnableRedisService: 'false'
+    OPS_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-00f3f238697db5198
+    B9_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0a969e8ce86fd1fb0
+    CHEQLY_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-04a269619cbff1adc
+    CLIENT_AWS_ACCOUNT_ID: "696061680080"
+    USA_NATIONAL_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-06c9ae4b66f6e9bfb
+    POETRY_FINANCE_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0d23d5c719b7bd078
+    QORBIS_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-099bb2eeaf6ee8578
+    MANA_PACIFIC_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-01c367a80d1a34729
+    TOKENIZER_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0dba6b5dfd7b57f7f
+    P2P_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0f40edf9d1f3935ba
+    PAYHAMMER_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-0a7920d5ac0c5332d
+    ESTU_ENDPOINT_SERVICE_NAME: com.amazonaws.vpce.us-east-1.vpce-svc-017f48b82f15dd1c7
+    SecretRotationScheduleExpression: 'cron(0 2 1 JAN ? *)'
+    RdsLockUserScheduleExpression: 'cron(0 5 1 JAN ? *)'
+  script:
+    - source "${MIDDLEWARE_PRODUCTION}"
+    - source "${MIDDLEWARE_PRODUCTION_SFTP}"
+    - bash -e scripts/pipelines/deploy-middleware.sh

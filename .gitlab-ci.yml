@@ -1,0 +1,11 @@
+image: nodejs
+
+stages:
+  - build
+  - test
+  - deploy
+
+include:
+  - local: 'pipelines/code-build/code-build.gitlab-ci.yml'
+  - local: 'pipelines/code-quality/code-quality.gitlab-ci.yml'
+  - local: 'pipelines/deployments/deploy.gitlab-ci.yml'
